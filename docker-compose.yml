@@ -180,7 +180,7 @@ services:
       TASK_QUEUE: workflows-high,workflows-default,workflows-low,default
       NUM_WORKERS: "4"
       POLL_INTERVAL: 1s
-      CALLBACK_URL: ${CALLBACK_URL:-http://host.docker.internal/api/v1/jobs/callback}
+      CALLBACK_URL: ${CALLBACK_URL:-http://host.docker.internal:8001/api/v1/jobs/callback}
       CALLBACK_SECRET: ${LINKFLOW_SECRET:?Set LINKFLOW_SECRET in .env}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]

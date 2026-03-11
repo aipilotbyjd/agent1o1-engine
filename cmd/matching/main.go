@@ -27,7 +27,6 @@ func main() {
 		port           = flag.Int("port", 7235, "gRPC server port")
 		httpPort       = flag.Int("http-port", 8080, "HTTP server port")
 		partitionCount = flag.Int("partition-count", 4, "Number of partitions")
-		redisAddr      = flag.String("redis-addr", getEnv("REDIS_ADDR", "localhost:6379"), "Redis address")
 	)
 	flag.Parse()
 
@@ -40,9 +39,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: *redisAddr,
-	})
+	// Initialize Redis — prefer REDIS_URL, fall back to REDIS_ADDR
+	var redisOpt *redis.Options
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		var err error
+		redisOpt, err = redis.ParseURL(redisURL)
+		if err != nil {
+			logger.Error("failed to parse REDIS_URL", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	} else {
+		redisOpt = &redis.Options{
+			Addr: getEnv("REDIS_ADDR", "localhost:6379"),
+		}
+	}
+	redisClient := redis.NewClient(redisOpt)
 
 	svc := matching.NewService(matching.Config{
 		NumPartitions: int32(*partitionCount),
