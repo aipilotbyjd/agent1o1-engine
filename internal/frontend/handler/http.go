@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/linkflow/engine/internal/frontend"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -17,16 +18,51 @@ const (
 
 // Laravel will call these endpoints to interact with the engine.
 type HTTPHandler struct {
-	service *frontend.Service
-	logger  *slog.Logger
+	service            *frontend.Service
+	logger             *slog.Logger
+	healthChecker      *frontend.HealthChecker
+	eventPublisher     *frontend.EventPublisher
+	credentialResolver *frontend.CredentialResolver
+	workflowCache      *frontend.WorkflowCache
+	redisClient        *redis.Client
+	dlqStreamKey       string
+}
+
+// HTTPHandlerConfig holds optional dependencies.
+type HTTPHandlerConfig struct {
+	HealthChecker      *frontend.HealthChecker
+	EventPublisher     *frontend.EventPublisher
+	CredentialResolver *frontend.CredentialResolver
+	WorkflowCache      *frontend.WorkflowCache
+	RedisClient        *redis.Client
+	DLQStreamKey       string
 }
 
 // NewHTTPHandler creates a new HTTP handler.
 func NewHTTPHandler(service *frontend.Service, logger *slog.Logger) *HTTPHandler {
 	return &HTTPHandler{
-		service: service,
-		logger:  logger,
+		service:      service,
+		logger:       logger,
+		dlqStreamKey: frontend.DefaultDLQStreamKey,
 	}
+}
+
+// NewHTTPHandlerWithConfig creates a new HTTP handler with all dependencies.
+func NewHTTPHandlerWithConfig(service *frontend.Service, logger *slog.Logger, cfg HTTPHandlerConfig) *HTTPHandler {
+	h := &HTTPHandler{
+		service:            service,
+		logger:             logger,
+		healthChecker:      cfg.HealthChecker,
+		eventPublisher:     cfg.EventPublisher,
+		credentialResolver: cfg.CredentialResolver,
+		workflowCache:      cfg.WorkflowCache,
+		redisClient:        cfg.RedisClient,
+		dlqStreamKey:       cfg.DLQStreamKey,
+	}
+	if h.dlqStreamKey == "" {
+		h.dlqStreamKey = frontend.DefaultDLQStreamKey
+	}
+	return h
 }
 
 // RegisterRoutes registers all HTTP routes.
@@ -38,12 +74,27 @@ func (h *HTTPHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/workspaces/{workspace_id}/executions/{execution_id}/retry", h.securityMiddleware(h.RetryExecution))
 	mux.HandleFunc("POST /api/v1/workspaces/{workspace_id}/executions/{execution_id}/signal", h.securityMiddleware(h.SendSignal))
 
+	// Pause / Resume via signal (new control endpoints)
+	mux.HandleFunc("POST /api/v1/workspaces/{workspace_id}/executions/{execution_id}/pause", h.securityMiddleware(h.PauseExecution))
+	mux.HandleFunc("POST /api/v1/workspaces/{workspace_id}/executions/{execution_id}/resume", h.securityMiddleware(h.ResumeExecution))
+
 	// List executions
 	mux.HandleFunc("GET /api/v1/workspaces/{workspace_id}/executions", h.securityMiddleware(h.ListExecutions))
 
 	// Health check (no security middleware needed for health endpoints)
 	mux.HandleFunc("GET /health", h.Health)
 	mux.HandleFunc("GET /ready", h.Ready)
+	mux.HandleFunc("GET /health/details", h.HealthDetails)
+	mux.HandleFunc("GET /health/partitions", h.PartitionStats)
+	mux.HandleFunc("GET /health/dlq", h.DLQHealth)
+
+	// DLQ management endpoints
+	mux.HandleFunc("GET /api/v1/dlq", h.securityMiddleware(h.ListDLQ))
+	mux.HandleFunc("POST /api/v1/dlq/{message_id}/replay", h.securityMiddleware(h.ReplayDLQ))
+
+	// Workflow cache stats
+	mux.HandleFunc("GET /api/v1/cache/stats", h.securityMiddleware(h.CacheStats))
+	mux.HandleFunc("POST /api/v1/cache/invalidate", h.securityMiddleware(h.CacheInvalidate))
 }
 
 // securityMiddleware adds security headers and request limits to handlers.

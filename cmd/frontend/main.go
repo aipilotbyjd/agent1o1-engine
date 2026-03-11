@@ -141,12 +141,42 @@ func main() {
 		}
 	}()
 
+	// Initialize new services
+	healthChecker := frontend.NewHealthChecker(rdb, getEnvInt("ENGINE_PARTITION_COUNT", frontend.DefaultConsumerConfig().PartitionCount))
+
+	eventPublisher := frontend.NewEventPublisher(rdb, logger)
+
+	credResolver := frontend.NewCredentialResolver(frontend.CredentialResolverConfig{
+		APIBaseURL: getEnv("CALLBACK_URL", frontend.DefaultCredentialResolverConfig().APIBaseURL),
+		SecretKey:  getEnv("LINKFLOW_SECRET", ""),
+		CacheTTL:   frontend.DefaultCredentialResolverConfig().CacheTTL,
+		Timeout:    frontend.DefaultCredentialResolverConfig().Timeout,
+	}, logger)
+
+	wfCache := frontend.NewWorkflowCache(frontend.WorkflowCacheConfig{
+		APIBaseURL: getEnv("CALLBACK_URL", frontend.DefaultWorkflowCacheConfig().APIBaseURL),
+		SecretKey:  getEnv("LINKFLOW_SECRET", ""),
+		CacheTTL:   frontend.DefaultWorkflowCacheConfig().CacheTTL,
+		Timeout:    frontend.DefaultWorkflowCacheConfig().Timeout,
+	}, logger)
+
+	_ = eventPublisher  // Will be used by worker nodes during execution
+	_ = credResolver    // Will be used by worker nodes to fetch credentials JIT
+	_ = wfCache         // Will be used to fetch workflow definitions
+
 	// Start HTTP Server for Health Checks and Engine API
 	go func() {
 		mux := http.NewServeMux()
 
-		// Register Engine API routes
-		frontendHandler := handler.NewHTTPHandler(svc, logger)
+		// Register Engine API routes with all dependencies
+		frontendHandler := handler.NewHTTPHandlerWithConfig(svc, logger, handler.HTTPHandlerConfig{
+			HealthChecker:      healthChecker,
+			EventPublisher:     eventPublisher,
+			CredentialResolver: credResolver,
+			WorkflowCache:      wfCache,
+			RedisClient:        rdb,
+			DLQStreamKey:       getEnv("JOB_DLQ_STREAM", frontend.DefaultConsumerConfig().DLQStreamKey),
+		})
 		frontendHandler.RegisterRoutes(mux)
 
 		httpServer := &http.Server{
