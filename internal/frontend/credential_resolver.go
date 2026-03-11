@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -90,12 +91,23 @@ func (r *CredentialResolver) Resolve(ctx context.Context, executionID int, nodeI
 		r.cache.Delete(cacheKey)
 	}
 
-	url := fmt.Sprintf("%s/api/v1/internal/credentials/%d/%s", r.apiBaseURL, executionID, nodeID)
+	url := fmt.Sprintf("%s/api/v1/internal/credentials", r.apiBaseURL)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	reqBody := map[string]interface{}{
+		"execution_id": executionID,
+		"node_id":      nodeID,
+	}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create credential request: %w", err)
 	}
+
+	req.Header.Set("Content-Type", "application/json")
 
 	// Sign the request
 	timestamp := time.Now().UTC().Format(time.RFC3339)
@@ -103,7 +115,7 @@ func (r *CredentialResolver) Resolve(ctx context.Context, executionID int, nodeI
 	req.Header.Set("X-LinkFlow-Callback-Token", callbackToken)
 
 	if r.secretKey != "" {
-		payload := fmt.Sprintf("%s.%d.%s", timestamp, executionID, nodeID)
+		payload := fmt.Sprintf("%s.%s", timestamp, string(bodyBytes))
 		signature := r.sign(payload)
 		req.Header.Set("X-LinkFlow-Signature", signature)
 	}

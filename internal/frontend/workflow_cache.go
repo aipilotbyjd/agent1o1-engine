@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -93,21 +94,28 @@ func (c *WorkflowCache) Get(ctx context.Context, workflowID int, versionHash str
 	}
 
 	// Fetch from API
-	url := fmt.Sprintf("%s/api/v1/internal/workflows/%d/definition", c.apiBaseURL, workflowID)
-	if versionHash != "" {
-		url += "?version_hash=" + versionHash
+	url := fmt.Sprintf("%s/api/v1/internal/workflows/definition", c.apiBaseURL)
+	
+	reqBody := map[string]interface{}{
+		"workflow_id":  workflowID,
+		"version_hash": versionHash,
+	}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create workflow request: %w", err)
 	}
+	req.Header.Set("Content-Type", "application/json")
 
 	// Sign the request
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	req.Header.Set("X-LinkFlow-Timestamp", timestamp)
 	if c.secretKey != "" {
-		payload := fmt.Sprintf("%s.%d.%s", timestamp, workflowID, versionHash)
+		payload := fmt.Sprintf("%s.%s", timestamp, string(bodyBytes))
 		signature := c.sign(payload)
 		req.Header.Set("X-LinkFlow-Signature", signature)
 	}
