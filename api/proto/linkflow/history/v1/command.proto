@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package linkflow.history.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/history/v1;historyv1";
+
+import "google/protobuf/duration.proto";
+import "linkflow/common/v1/enums.proto";
+import "linkflow/common/v1/message.proto";
+import "linkflow/api/v1/workflow.proto";
+
+// CommandType represents the type of command.
+enum CommandType {
+  COMMAND_TYPE_UNSPECIFIED = 0;
+  COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK = 1;
+  COMMAND_TYPE_START_TIMER = 2;
+  COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION = 3;
+  COMMAND_TYPE_FAIL_WORKFLOW_EXECUTION = 4;
+  COMMAND_TYPE_CANCEL_TIMER = 5;
+}
+
+// Command represents a decision made by the workflow.
+message Command {
+  CommandType command_type = 1;
+  oneof attributes {
+    ScheduleActivityTaskCommandAttributes schedule_activity_task_attributes = 2;
+    StartTimerCommandAttributes start_timer_attributes = 3;
+    CompleteWorkflowExecutionCommandAttributes complete_workflow_execution_attributes = 4;
+    FailWorkflowExecutionCommandAttributes fail_workflow_execution_attributes = 5;
+    CancelTimerCommandAttributes cancel_timer_attributes = 6;
+  }
+}
+
+// ScheduleActivityTaskCommandAttributes contains attributes for scheduling an activity task.
+message ScheduleActivityTaskCommandAttributes {
+  string node_id = 1;
+  string node_type = 2;
+  string name = 3; // Activity type/name
+  linkflow.common.v1.Payloads input = 4;
+  linkflow.common.v1.RetryPolicy retry_policy = 5;
+  string task_queue = 6;
+  google.protobuf.Duration schedule_to_close_timeout = 7;
+  google.protobuf.Duration schedule_to_start_timeout = 8;
+  google.protobuf.Duration start_to_close_timeout = 9;
+  google.protobuf.Duration heartbeat_timeout = 10;
+  linkflow.common.v1.Header header = 11;
+  bytes config = 12; // Raw JSON config for the node
+}
+
+// StartTimerCommandAttributes contains attributes for starting a timer.
+message StartTimerCommandAttributes {
+  string timer_id = 1;
+  google.protobuf.Duration start_to_fire_timeout = 2;
+}
+
+// CompleteWorkflowExecutionCommandAttributes contains attributes for completing a workflow execution.
+message CompleteWorkflowExecutionCommandAttributes {
+  linkflow.common.v1.Payloads result = 1;
+}
+
+// FailWorkflowExecutionCommandAttributes contains attributes for failing a workflow execution.
+message FailWorkflowExecutionCommandAttributes {
+  linkflow.common.v1.Failure failure = 1;
+}
+
+// CancelTimerCommandAttributes contains attributes for cancelling a timer.
+message CancelTimerCommandAttributes {
+  string timer_id = 1;
+}

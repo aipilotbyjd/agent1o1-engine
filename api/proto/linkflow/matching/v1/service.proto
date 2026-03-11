@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package linkflow.matching.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/matching/v1;matchingv1";
+
+import "google/protobuf/timestamp.proto";
+import "linkflow/common/v1/enums.proto";
+import "linkflow/common/v1/message.proto";
+import "linkflow/matching/v1/task.proto";
+
+// MatchingService is the internal service for task matching.
+service MatchingService {
+  // AddTask adds a task to a task queue.
+  rpc AddTask(AddTaskRequest) returns (AddTaskResponse);
+
+  // PollTask polls for a task from a task queue.
+  rpc PollTask(PollTaskRequest) returns (PollTaskResponse);
+
+  // CompleteTask completes a task.
+  rpc CompleteTask(CompleteTaskRequest) returns (CompleteTaskResponse);
+
+  // QueryWorkflow queries a workflow directly through matching.
+  rpc QueryWorkflow(MatchingServiceQueryWorkflowRequest) returns (MatchingServiceQueryWorkflowResponse);
+
+  // HeartbeatTask sends a heartbeat for an activity task.
+  rpc HeartbeatTask(HeartbeatTaskRequest) returns (HeartbeatTaskResponse);
+}
+
+// AddTaskRequest is the request for adding a task.
+message AddTaskRequest {
+  string namespace = 1;
+  TaskQueue task_queue = 2;
+  linkflow.common.v1.TaskType task_type = 3;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 4;
+  int64 scheduled_event_id = 5;
+  google.protobuf.Timestamp schedule_time = 6;
+  TaskForwardInfo forward_info = 7;
+}
+
+// TaskForwardInfo contains information about task forwarding.
+message TaskForwardInfo {
+  string source_partition = 1;
+}
+
+// AddTaskResponse is the response for adding a task.
+message AddTaskResponse {}
+
+// MatchingServiceQueryWorkflowRequest is the request for querying workflow through matching.
+message MatchingServiceQueryWorkflowRequest {
+  string namespace = 1;
+  TaskQueue task_queue = 2;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 3;
+  QueryInput query = 4;
+  TaskForwardInfo forward_info = 5;
+}
+
+// QueryInput contains the query details.
+message QueryInput {
+  string query_type = 1;
+  linkflow.common.v1.Payloads query_args = 2;
+}
+
+// MatchingServiceQueryWorkflowResponse is the response for querying workflow through matching.
+message MatchingServiceQueryWorkflowResponse {
+  linkflow.common.v1.Payloads query_result = 1;
+}
+
+// HeartbeatTaskRequest is the request for sending a task heartbeat.
+message HeartbeatTaskRequest {
+  bytes task_token = 1;
+  string namespace = 2;
+  string identity = 3;
+  linkflow.common.v1.Payloads details = 4;
+}
+
+// HeartbeatTaskResponse is the response for sending a task heartbeat.
+message HeartbeatTaskResponse {
+  bool cancel_requested = 1;
+}

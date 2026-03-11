@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package linkflow.common.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/common/v1;commonv1";
+
+import "google/protobuf/duration.proto";
+import "linkflow/common/v1/enums.proto";
+
+// WorkflowExecution identifies a workflow execution.
+message WorkflowExecution {
+  string workflow_id = 1;
+  string run_id = 2;
+}
+
+// Payload represents serialized data with metadata.
+message Payload {
+  bytes data = 1;
+  map<string, bytes> metadata = 2;
+}
+
+// Payloads is a collection of Payload messages.
+message Payloads {
+  repeated Payload payloads = 1;
+}
+
+// RetryPolicy defines the retry behavior for activities and workflows.
+message RetryPolicy {
+  google.protobuf.Duration initial_interval = 1;
+  double backoff_coefficient = 2;
+  int32 max_attempts = 3;
+  google.protobuf.Duration max_interval = 4;
+  repeated string non_retryable_errors = 5;
+}
+
+// Header contains metadata fields that are propagated across workflow boundaries.
+message Header {
+  map<string, Payload> fields = 1;
+}
+
+// Failure represents an error or failure that occurred during execution.
+message Failure {
+  string message = 1;
+  string source = 2;
+  string stack_trace = 3;
+  Failure cause = 4;
+  FailureType failure_type = 5;
+  // Encoded attributes for specific failure types
+  Payload encoded_attributes = 6;
+}
+
+// Memo contains user-defined metadata attached to a workflow.
+message Memo {
+  map<string, Payload> fields = 1;
+}
+
+// SearchAttributes contains indexed attributes for workflow visibility.
+message SearchAttributes {
+  map<string, Payload> indexed_fields = 1;
+}
+
+// DataBlob represents an opaque data blob.
+message DataBlob {
+  string encoding_type = 1;
+  bytes data = 2;
+}

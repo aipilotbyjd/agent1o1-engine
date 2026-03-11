@@ -1,0 +1,108 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  build-tags:
+    - integration
+
+linters:
+  disable-all: true
+  enable:
+    - gofmt
+    - goimports
+    - govet
+    - ineffassign
+    - errcheck
+    - staticcheck
+    - unused
+    - revive
+    - gosec
+    - misspell
+    - gocritic
+    - unconvert
+    - dupl
+
+linters-settings:
+  govet:
+    disable:
+      - shadow
+      - fieldalignment
+  errcheck:
+    exclude-functions:
+      - (*database/sql.Tx).Rollback
+      - (*github.com/jackc/pgx/v5.Tx).Rollback
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
+      - encoding/json.NewEncoder.Encode
+      - encoding/json.NewDecoder.Decode
+      - encoding/json.Unmarshal
+      - os.WriteFile
+      - io.Copy
+      - rand.Read
+  revive:
+    severity: warning
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: package-comments
+        disabled: true
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+  gosec:
+    severity: warning
+    confidence: medium
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - hugeParam
+      - rangeValCopy
+  dupl:
+    threshold: 150
+  misspell:
+    locale: US
+
+issues:
+  exclude-dirs:
+    - api/gen
+    - bin
+  exclude-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.pb\\.gw\\.go$"
+    - ".*_grpc\\.go$"
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - govet
+        - dupl
+        - gosec
+    - path: cmd/
+      linters:
+        - errcheck
+    - path: scripts/
+      linters:
+        - errcheck
+        - gosec
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  formats:
+    - format: colored-line-number
+  sort-results: true

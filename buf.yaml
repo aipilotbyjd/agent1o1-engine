@@ -1,0 +1,13 @@
+version: v2
+modules:
+  - path: api/proto
+    name: buf.build/linkflow/engine
+deps:
+  - buf.build/googleapis/googleapis
+  - buf.build/grpc-ecosystem/grpc-gateway
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

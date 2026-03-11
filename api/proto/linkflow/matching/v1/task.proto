@@ -1,0 +1,203 @@
+syntax = "proto3";
+
+package linkflow.matching.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/matching/v1;matchingv1";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "linkflow/common/v1/enums.proto";
+import "linkflow/common/v1/message.proto";
+import "linkflow/api/v1/workflow.proto";
+import "linkflow/history/v1/events.proto";
+
+// Task represents a task to be executed by a worker.
+message Task {
+  string task_id = 1;
+  bytes task_token = 2;
+  linkflow.common.v1.TaskType task_type = 3;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 4;
+  google.protobuf.Timestamp scheduled_time = 5;
+  int32 attempt = 6;
+  google.protobuf.Timestamp started_time = 7;
+  google.protobuf.Duration schedule_to_start_timeout = 8;
+}
+
+// TaskQueue identifies a task queue with its kind.
+message TaskQueue {
+  string name = 1;
+  linkflow.common.v1.TaskQueueKind kind = 2;
+}
+
+// PollTaskRequest is the request for polling a task.
+message PollTaskRequest {
+  string namespace = 1;
+  TaskQueue task_queue = 2;
+  string identity = 3;
+  linkflow.common.v1.TaskType task_type = 4;
+}
+
+// PollTaskResponse is the response for polling a task.
+message PollTaskResponse {
+  bytes task_token = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  linkflow.api.v1.WorkflowType workflow_type = 3;
+  int64 previous_started_event_id = 4;
+  int64 started_event_id = 5;
+  int32 attempt = 6;
+  int64 next_event_id = 7;
+  int64 backlog_count_hint = 8;
+  bool sticky_execution_enabled = 9;
+  linkflow.history.v1.History history = 10;
+  bytes next_page_token = 11;
+  WorkflowTaskInfo workflow_task_info = 12;
+  ActivityTaskInfo activity_task_info = 13;
+}
+
+// WorkflowTaskInfo contains information specific to workflow tasks.
+message WorkflowTaskInfo {
+  int64 scheduled_event_id = 1;
+  google.protobuf.Timestamp scheduled_time = 2;
+  google.protobuf.Timestamp started_time = 3;
+}
+
+// ActivityTaskInfo contains information specific to activity tasks.
+message ActivityTaskInfo {
+  string activity_id = 1;
+  string activity_type = 2;
+  linkflow.common.v1.Payloads input = 3;
+  int64 scheduled_event_id = 4;
+  google.protobuf.Timestamp scheduled_time = 5;
+  google.protobuf.Timestamp started_time = 6;
+  google.protobuf.Duration schedule_to_close_timeout = 7;
+  google.protobuf.Duration start_to_close_timeout = 8;
+  google.protobuf.Duration heartbeat_timeout = 9;
+  linkflow.common.v1.RetryPolicy retry_policy = 10;
+  linkflow.common.v1.Payloads heartbeat_details = 11;
+}
+
+// CompleteTaskRequest is the request for completing a task.
+message CompleteTaskRequest {
+  bytes task_token = 1;
+  string namespace = 2;
+  string identity = 3;
+  oneof completion {
+    WorkflowTaskCompletion workflow_task_completion = 10;
+    ActivityTaskCompletion activity_task_completion = 11;
+  }
+}
+
+// WorkflowTaskCompletion contains the result of a workflow task.
+message WorkflowTaskCompletion {
+  repeated Command commands = 1;
+  bool force_create_new_task = 2;
+  bool return_new_task = 3;
+  string binary_checksum = 4;
+}
+
+// Command represents a command from a workflow task completion.
+message Command {
+  CommandType command_type = 1;
+  oneof attributes {
+    ScheduleNodeCommandAttributes schedule_node_attributes = 10;
+    CompleteExecutionCommandAttributes complete_execution_attributes = 11;
+    FailExecutionCommandAttributes fail_execution_attributes = 12;
+    CancelExecutionCommandAttributes cancel_execution_attributes = 13;
+    StartTimerCommandAttributes start_timer_attributes = 14;
+    CancelTimerCommandAttributes cancel_timer_attributes = 15;
+    ContinueAsNewCommandAttributes continue_as_new_attributes = 16;
+    SignalExternalCommandAttributes signal_external_attributes = 17;
+  }
+}
+
+// CommandType represents the type of command.
+enum CommandType {
+  COMMAND_TYPE_UNSPECIFIED = 0;
+  COMMAND_TYPE_SCHEDULE_NODE = 1;
+  COMMAND_TYPE_COMPLETE_EXECUTION = 2;
+  COMMAND_TYPE_FAIL_EXECUTION = 3;
+  COMMAND_TYPE_CANCEL_EXECUTION = 4;
+  COMMAND_TYPE_START_TIMER = 5;
+  COMMAND_TYPE_CANCEL_TIMER = 6;
+  COMMAND_TYPE_CONTINUE_AS_NEW = 7;
+  COMMAND_TYPE_SIGNAL_EXTERNAL = 8;
+}
+
+// ScheduleNodeCommandAttributes contains attributes for scheduling a node.
+message ScheduleNodeCommandAttributes {
+  string node_id = 1;
+  string node_type = 2;
+  string name = 3;
+  TaskQueue task_queue = 4;
+  linkflow.common.v1.Payloads input = 5;
+  google.protobuf.Duration schedule_to_start_timeout = 6;
+  google.protobuf.Duration start_to_close_timeout = 7;
+  google.protobuf.Duration schedule_to_close_timeout = 8;
+  google.protobuf.Duration heartbeat_timeout = 9;
+  linkflow.common.v1.RetryPolicy retry_policy = 10;
+  linkflow.common.v1.Header header = 11;
+}
+
+// CompleteExecutionCommandAttributes contains attributes for completing execution.
+message CompleteExecutionCommandAttributes {
+  linkflow.common.v1.Payloads result = 1;
+}
+
+// FailExecutionCommandAttributes contains attributes for failing execution.
+message FailExecutionCommandAttributes {
+  linkflow.common.v1.Failure failure = 1;
+}
+
+// CancelExecutionCommandAttributes contains attributes for cancelling execution.
+message CancelExecutionCommandAttributes {
+  linkflow.common.v1.Payloads details = 1;
+}
+
+// StartTimerCommandAttributes contains attributes for starting a timer.
+message StartTimerCommandAttributes {
+  string timer_id = 1;
+  google.protobuf.Duration start_to_fire_timeout = 2;
+}
+
+// CancelTimerCommandAttributes contains attributes for cancelling a timer.
+message CancelTimerCommandAttributes {
+  string timer_id = 1;
+}
+
+// ContinueAsNewCommandAttributes contains attributes for continue as new.
+message ContinueAsNewCommandAttributes {
+  linkflow.api.v1.WorkflowType workflow_type = 1;
+  TaskQueue task_queue = 2;
+  linkflow.common.v1.Payloads input = 3;
+  google.protobuf.Duration execution_timeout = 4;
+  google.protobuf.Duration run_timeout = 5;
+  google.protobuf.Duration task_timeout = 6;
+  linkflow.common.v1.RetryPolicy retry_policy = 7;
+  linkflow.common.v1.Memo memo = 8;
+  linkflow.common.v1.SearchAttributes search_attributes = 9;
+  linkflow.common.v1.Header header = 10;
+}
+
+// SignalExternalCommandAttributes contains attributes for signaling external workflow.
+message SignalExternalCommandAttributes {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution execution = 2;
+  string signal_name = 3;
+  linkflow.common.v1.Payloads input = 4;
+  bool child_workflow_only = 5;
+  linkflow.common.v1.Header header = 6;
+}
+
+// ActivityTaskCompletion contains the result of an activity task.
+message ActivityTaskCompletion {
+  oneof result {
+    linkflow.common.v1.Payloads completed = 1;
+    linkflow.common.v1.Failure failed = 2;
+    linkflow.common.v1.Payloads cancelled = 3;
+  }
+}
+
+// CompleteTaskResponse is the response for completing a task.
+message CompleteTaskResponse {
+  PollTaskResponse new_task = 1;
+}

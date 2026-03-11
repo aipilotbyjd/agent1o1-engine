@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package linkflow.api.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/api/v1;apiv1";
+
+import "linkflow/api/v1/workflow.proto";
+import "linkflow/api/v1/execution.proto";
+
+// WorkflowService is the main API service for workflow operations.
+service WorkflowService {
+  // StartWorkflowExecution starts a new workflow execution.
+  rpc StartWorkflowExecution(StartWorkflowExecutionRequest) returns (StartWorkflowExecutionResponse);
+
+  // SignalWorkflowExecution sends a signal to a running workflow execution.
+  rpc SignalWorkflowExecution(SignalWorkflowExecutionRequest) returns (SignalWorkflowExecutionResponse);
+
+  // TerminateWorkflowExecution terminates a running workflow execution.
+  rpc TerminateWorkflowExecution(TerminateWorkflowExecutionRequest) returns (TerminateWorkflowExecutionResponse);
+
+  // QueryWorkflow queries a running workflow execution.
+  rpc QueryWorkflow(QueryWorkflowRequest) returns (QueryWorkflowResponse);
+
+  // GetExecution retrieves information about a workflow execution.
+  rpc GetExecution(GetExecutionRequest) returns (GetExecutionResponse);
+
+  // ListExecutions lists workflow executions with pagination.
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+
+  // DescribeExecution describes a workflow execution in detail.
+  rpc DescribeExecution(DescribeExecutionRequest) returns (DescribeExecutionResponse);
+}

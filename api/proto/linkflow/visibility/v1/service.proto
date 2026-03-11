@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package linkflow.visibility.v1;
+
+option go_package = "github.com/linkflow/engine/api/gen/linkflow/visibility/v1;visibilityv1";
+
+import "google/protobuf/timestamp.proto";
+
+// VisibilityService provides workflow execution visibility and search functionality.
+service VisibilityService {
+  // RecordExecutionStarted records that a workflow execution has started.
+  rpc RecordExecutionStarted(RecordExecutionStartedRequest) returns (RecordExecutionStartedResponse);
+
+  // RecordExecutionClosed records that a workflow execution has closed.
+  rpc RecordExecutionClosed(RecordExecutionClosedRequest) returns (RecordExecutionClosedResponse);
+
+  // GetExecution retrieves visibility information for a specific execution.
+  rpc GetExecution(GetExecutionRequest) returns (GetExecutionResponse);
+
+  // ListExecutions lists workflow executions matching the specified criteria.
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+
+  // CountExecutions counts workflow executions matching the specified criteria.
+  rpc CountExecutions(CountExecutionsRequest) returns (CountExecutionsResponse);
+}
+
+// ExecutionStatus represents the status of a workflow execution.
+enum ExecutionStatus {
+  EXECUTION_STATUS_UNSPECIFIED = 0;
+  EXECUTION_STATUS_RUNNING = 1;
+  EXECUTION_STATUS_COMPLETED = 2;
+  EXECUTION_STATUS_FAILED = 3;
+  EXECUTION_STATUS_TERMINATED = 4;
+  EXECUTION_STATUS_TIMED_OUT = 5;
+  EXECUTION_STATUS_CANCELED = 6;
+}
+
+// ExecutionInfo contains visibility information about a workflow execution.
+message ExecutionInfo {
+  string namespace_id = 1;
+  string workflow_id = 2;
+  string run_id = 3;
+  string workflow_type_name = 4;
+  ExecutionStatus status = 5;
+  google.protobuf.Timestamp start_time = 6;
+  google.protobuf.Timestamp close_time = 7;
+  google.protobuf.Timestamp execution_time = 8;
+  bytes memo = 9;
+  map<string, string> search_attributes = 10;
+  string task_queue = 11;
+  string parent_workflow_id = 12;
+  string parent_run_id = 13;
+}
+
+// RecordExecutionStartedRequest is the request for RecordExecutionStarted.
+message RecordExecutionStartedRequest {
+  string namespace_id = 1;
+  string workflow_id = 2;
+  string run_id = 3;
+  string workflow_type_name = 4;
+  google.protobuf.Timestamp start_time = 5;
+  string task_queue = 6;
+  bytes memo = 7;
+  map<string, string> search_attributes = 8;
+  string parent_workflow_id = 9;
+  string parent_run_id = 10;
+}
+
+// RecordExecutionStartedResponse is the response for RecordExecutionStarted.
+message RecordExecutionStartedResponse {}
+
+// RecordExecutionClosedRequest is the request for RecordExecutionClosed.
+message RecordExecutionClosedRequest {
+  string namespace_id = 1;
+  string workflow_id = 2;
+  string run_id = 3;
+  ExecutionStatus status = 4;
+  google.protobuf.Timestamp close_time = 5;
+}
+
+// RecordExecutionClosedResponse is the response for RecordExecutionClosed.
+message RecordExecutionClosedResponse {}
+
+// GetExecutionRequest is the request for GetExecution.
+message GetExecutionRequest {
+  string namespace_id = 1;
+  string workflow_id = 2;
+  string run_id = 3;
+}
+
+// GetExecutionResponse is the response for GetExecution.
+message GetExecutionResponse {
+  ExecutionInfo execution = 1;
+}
+
+// ListExecutionsRequest is the request for ListExecutions.
+message ListExecutionsRequest {
+  string namespace_id = 1;
+  int32 page_size = 2;
+  bytes next_page_token = 3;
+  // SQL-like query for filtering (e.g., "ExecutionStatus = 'Running' AND WorkflowType = 'MyWorkflow'")
+  string query = 4;
+}
+
+// ListExecutionsResponse is the response for ListExecutions.
+message ListExecutionsResponse {
+  repeated ExecutionInfo executions = 1;
+  bytes next_page_token = 2;
+}
+
+// CountExecutionsRequest is the request for CountExecutions.
+message CountExecutionsRequest {
+  string namespace_id = 1;
+  string query = 2;
+}
+
+// CountExecutionsResponse is the response for CountExecutions.
+message CountExecutionsResponse {
+  int64 count = 1;
+}

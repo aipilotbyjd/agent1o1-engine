@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package linkflow.api.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/api/v1;apiv1";
+
+import "google/protobuf/timestamp.proto";
+import "linkflow/common/v1/enums.proto";
+import "linkflow/common/v1/message.proto";
+import "linkflow/api/v1/workflow.proto";
+
+// ExecutionInfo contains information about a workflow execution.
+message ExecutionInfo {
+  linkflow.common.v1.WorkflowExecution workflow_execution = 1;
+  WorkflowType type = 2;
+  linkflow.common.v1.ExecutionStatus status = 3;
+  google.protobuf.Timestamp start_time = 4;
+  google.protobuf.Timestamp close_time = 5;
+  int64 history_length = 6;
+  linkflow.common.v1.Memo memo = 7;
+  linkflow.common.v1.SearchAttributes search_attributes = 8;
+  string parent_workflow_id = 9;
+  string parent_run_id = 10;
+  google.protobuf.Timestamp execution_time = 11;
+  TaskQueue task_queue = 12;
+}
+
+// GetExecutionRequest is the request for getting a workflow execution.
+message GetExecutionRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+}
+
+// GetExecutionResponse is the response for getting a workflow execution.
+message GetExecutionResponse {
+  ExecutionInfo execution_info = 1;
+}
+
+// ListExecutionsRequest is the request for listing workflow executions.
+message ListExecutionsRequest {
+  string namespace = 1;
+  int32 page_size = 2;
+  bytes next_page_token = 3;
+  string query = 4;
+}
+
+// ListExecutionsResponse is the response for listing workflow executions.
+message ListExecutionsResponse {
+  repeated ExecutionInfo executions = 1;
+  bytes next_page_token = 2;
+}
+
+// DescribeExecutionRequest is the request for describing a workflow execution.
+message DescribeExecutionRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+}
+
+// DescribeExecutionResponse is the response for describing a workflow execution.
+message DescribeExecutionResponse {
+  ExecutionInfo execution_info = 1;
+  WorkflowExecutionConfig execution_config = 2;
+  repeated PendingActivityInfo pending_activities = 3;
+  repeated PendingChildExecutionInfo pending_children = 4;
+}
+
+// PendingActivityInfo contains information about a pending activity.
+message PendingActivityInfo {
+  string activity_id = 1;
+  string activity_type = 2;
+  linkflow.common.v1.ExecutionStatus state = 3;
+  google.protobuf.Timestamp scheduled_time = 4;
+  google.protobuf.Timestamp last_started_time = 5;
+  int32 attempt = 6;
+  google.protobuf.Timestamp expiration_time = 7;
+  linkflow.common.v1.Failure last_failure = 8;
+}
+
+// PendingChildExecutionInfo contains information about a pending child workflow.
+message PendingChildExecutionInfo {
+  string workflow_id = 1;
+  string run_id = 2;
+  string workflow_type = 3;
+  google.protobuf.Timestamp initiated_time = 4;
+}

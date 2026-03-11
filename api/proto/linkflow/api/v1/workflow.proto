@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package linkflow.api.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/api/v1;apiv1";
+
+import "google/protobuf/duration.proto";
+import "linkflow/common/v1/enums.proto";
+import "linkflow/common/v1/message.proto";
+
+// WorkflowType identifies the type of workflow.
+message WorkflowType {
+  string name = 1;
+  string version = 2;
+}
+
+// TaskQueue identifies a task queue.
+message TaskQueue {
+  string name = 1;
+  linkflow.common.v1.TaskQueueKind kind = 2;
+}
+
+// WorkflowExecutionConfig contains configuration for a workflow execution.
+message WorkflowExecutionConfig {
+  TaskQueue task_queue = 1;
+  google.protobuf.Duration execution_timeout = 2;
+  google.protobuf.Duration run_timeout = 3;
+  google.protobuf.Duration task_timeout = 4;
+}
+
+// StartWorkflowExecutionRequest is the request for starting a workflow execution.
+message StartWorkflowExecutionRequest {
+  string namespace = 1;
+  string workflow_id = 2;
+  WorkflowType workflow_type = 3;
+  TaskQueue task_queue = 4;
+  linkflow.common.v1.Payloads input = 5;
+  google.protobuf.Duration execution_timeout = 6;
+  google.protobuf.Duration run_timeout = 7;
+  google.protobuf.Duration task_timeout = 8;
+  string request_id = 9;
+  linkflow.common.v1.RetryPolicy retry_policy = 10;
+  string cron_schedule = 11;
+  linkflow.common.v1.Memo memo = 12;
+  linkflow.common.v1.SearchAttributes search_attributes = 13;
+  linkflow.common.v1.Header header = 14;
+}
+
+// StartWorkflowExecutionResponse is the response for starting a workflow execution.
+message StartWorkflowExecutionResponse {
+  string run_id = 1;
+}
+
+// TerminateWorkflowExecutionRequest is the request for terminating a workflow execution.
+message TerminateWorkflowExecutionRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  string reason = 3;
+  linkflow.common.v1.Payloads details = 4;
+  string identity = 5;
+  string first_run_id = 6;
+}
+
+// TerminateWorkflowExecutionResponse is the response for terminating a workflow execution.
+message TerminateWorkflowExecutionResponse {}
+
+// SignalWorkflowExecutionRequest is the request for signaling a workflow execution.
+message SignalWorkflowExecutionRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  string signal_name = 3;
+  linkflow.common.v1.Payloads input = 4;
+  string identity = 5;
+  string request_id = 6;
+  linkflow.common.v1.Header header = 7;
+}
+
+// SignalWorkflowExecutionResponse is the response for signaling a workflow execution.
+message SignalWorkflowExecutionResponse {}
+
+// QueryWorkflowRequest is the request for querying a workflow execution.
+message QueryWorkflowRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  WorkflowQuery query = 3;
+}
+
+// WorkflowQuery represents a query to a workflow.
+message WorkflowQuery {
+  string query_type = 1;
+  linkflow.common.v1.Payloads query_args = 2;
+}
+
+// QueryWorkflowResponse is the response for querying a workflow execution.
+message QueryWorkflowResponse {
+  linkflow.common.v1.Payloads query_result = 1;
+}

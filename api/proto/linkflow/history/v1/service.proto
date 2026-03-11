@@ -1,0 +1,180 @@
+syntax = "proto3";
+
+package linkflow.history.v1;
+
+option go_package = "github.com/linkflow/engine/gen/proto/linkflow/history/v1;historyv1";
+
+import "google/protobuf/timestamp.proto";
+import "linkflow/common/v1/enums.proto";
+import "linkflow/common/v1/message.proto";
+import "linkflow/history/v1/events.proto";
+import "linkflow/history/v1/command.proto";
+import "linkflow/api/v1/workflow.proto";
+
+// HistoryService is the internal service for managing workflow history.
+service HistoryService {
+  // RecordEvent records a new event in the workflow history (Legacy/Direct).
+  rpc RecordEvent(RecordEventRequest) returns (RecordEventResponse);
+
+  // GetHistory retrieves the history of a workflow execution.
+  rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
+
+  // GetMutableState retrieves the mutable state of a workflow execution.
+  rpc GetMutableState(GetMutableStateRequest) returns (GetMutableStateResponse);
+
+  // ResetExecution resets a workflow execution to a specific point.
+  rpc ResetExecution(ResetExecutionRequest) returns (ResetExecutionResponse);
+
+  // RespondWorkflowTaskCompleted is called by worker when it has finished processing a workflow task.
+  rpc RespondWorkflowTaskCompleted(RespondWorkflowTaskCompletedRequest) returns (RespondWorkflowTaskCompletedResponse);
+
+  // RespondWorkflowTaskFailed is called by worker when it failed to process a workflow task.
+  rpc RespondWorkflowTaskFailed(RespondWorkflowTaskFailedRequest) returns (RespondWorkflowTaskFailedResponse);
+
+  // RespondActivityTaskCompleted is called by worker when it has finished processing an activity task.
+  rpc RespondActivityTaskCompleted(RespondActivityTaskCompletedRequest) returns (RespondActivityTaskCompletedResponse);
+
+  // RespondActivityTaskFailed is called by worker when it failed to process an activity task.
+  rpc RespondActivityTaskFailed(RespondActivityTaskFailedRequest) returns (RespondActivityTaskFailedResponse);
+
+  // ListWorkflowExecutions lists workflow executions.
+  rpc ListWorkflowExecutions(ListWorkflowExecutionsRequest) returns (ListWorkflowExecutionsResponse);
+}
+
+// RecordEventRequest is the request for recording a history event.
+message RecordEventRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  HistoryEvent event = 3;
+}
+
+// RecordEventResponse is the response for recording a history event.
+message RecordEventResponse {
+  int64 event_id = 1;
+}
+
+// GetHistoryRequest is the request for getting workflow history.
+message GetHistoryRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  int64 first_event_id = 3;
+  int64 next_event_id = 4;
+  int32 page_size = 5;
+  bytes next_page_token = 6;
+  bool skip_archival = 7;
+}
+
+// GetHistoryResponse is the response for getting workflow history.
+message GetHistoryResponse {
+  History history = 1;
+  bytes next_page_token = 2;
+  bool archived = 3;
+}
+
+// GetMutableStateRequest is the request for getting mutable state.
+message GetMutableStateRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  int64 expected_next_event_id = 3;
+  bytes current_branch_token = 4;
+}
+
+// GetMutableStateResponse is the response for getting mutable state.
+message GetMutableStateResponse {
+  linkflow.common.v1.WorkflowExecution workflow_execution = 1;
+  string workflow_type = 2;
+  int64 next_event_id = 3;
+  int64 previous_started_event_id = 4;
+  int64 last_first_event_id = 5;
+  string task_queue = 6;
+  string sticky_task_queue = 7;
+  linkflow.common.v1.ExecutionStatus workflow_status = 8;
+  bytes branch_token = 9;
+  bool is_sticky_task_queue_enabled = 10;
+  int64 history_size = 11;
+  google.protobuf.Timestamp last_update_time = 12;
+}
+
+// ResetExecutionRequest is the request for resetting a workflow execution.
+message ResetExecutionRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  string reason = 3;
+  int64 reset_event_id = 4;
+  string request_id = 5;
+  bool reset_reapply_type = 6;
+}
+
+// ResetExecutionResponse is the response for resetting a workflow execution.
+message ResetExecutionResponse {
+  string run_id = 1;
+}
+
+message RespondWorkflowTaskCompletedRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  int64 task_token = 3; // Actually just ScheduledEventID for now
+  repeated Command commands = 4;
+  string identity = 5;
+  string binary_checksum = 6;
+}
+
+message RespondWorkflowTaskCompletedResponse {
+  bool activity_tasks_scheduled = 1;
+}
+
+message RespondWorkflowTaskFailedRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  int64 task_token = 3;
+  linkflow.common.v1.Failure failure = 4;
+  string identity = 5;
+}
+
+message RespondWorkflowTaskFailedResponse {}
+
+message RespondActivityTaskCompletedRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  int64 scheduled_event_id = 3;
+  linkflow.common.v1.Payloads result = 4;
+  string identity = 5;
+}
+
+message RespondActivityTaskCompletedResponse {}
+
+message RespondActivityTaskFailedRequest {
+  string namespace = 1;
+  linkflow.common.v1.WorkflowExecution workflow_execution = 2;
+  int64 scheduled_event_id = 3;
+  linkflow.common.v1.Failure failure = 4;
+  string identity = 5;
+}
+
+message RespondActivityTaskFailedResponse {}
+
+message ListWorkflowExecutionsRequest {
+  string namespace = 1;
+  int32 page_size = 2;
+  bytes next_page_token = 3;
+  string query = 4;
+}
+
+message ListWorkflowExecutionsResponse {
+  repeated WorkflowExecutionInfo executions = 1;
+  bytes next_page_token = 2;
+}
+
+// WorkflowExecutionInfo contains information about a workflow execution.
+message WorkflowExecutionInfo {
+  linkflow.common.v1.WorkflowExecution execution = 1;
+  linkflow.api.v1.WorkflowType type = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp close_time = 4;
+  linkflow.common.v1.ExecutionStatus status = 5;
+  int64 history_length = 6;
+  string parent_namespace_id = 7;
+  string parent_execution_id = 8; // WorkflowID
+  linkflow.common.v1.Memo memo = 9;
+  linkflow.common.v1.SearchAttributes search_attributes = 10;
+}

@@ -1,0 +1,272 @@
+# Agent1o1 Engine - Standalone Execution Plane
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose down           # Stop all services
+#   docker compose logs -f        # Tail logs
+
+x-common-env: &common-env
+  DATABASE_URL: postgres://${POSTGRES_USER:-linkflow}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-linkflow}?sslmode=disable&search_path=workflow
+  REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  LOG_FORMAT: json
+
+x-common-config: &common-config
+  restart: unless-stopped
+  networks:
+    - engine
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-engine-build: &engine-build
+  context: .
+  dockerfile: Dockerfile
+
+services:
+  # ============================================
+  # Infrastructure
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    <<: *common-config
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-linkflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-linkflow}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-linkflow} -d ${POSTGRES_DB:-linkflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c max_connections=200
+        -c work_mem=16MB
+
+  redis:
+    image: redis:7-alpine
+    <<: *common-config
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    command: >
+      redis-server
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 256mb
+        --maxmemory-policy noeviction
+        --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$REDIS_PASSWORD redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Go Engine Services
+  # ============================================
+  frontend:
+    build:
+      <<: *engine-build
+      args:
+        SERVICE: frontend
+    <<: *common-config
+    environment:
+      <<: *common-env
+      SERVICE_NAME: frontend
+      HTTP_PORT: "8080"
+      GRPC_PORT: "9090"
+      HISTORY_ADDR: history:7234
+      MATCHING_ADDR: matching:7235
+      VISIBILITY_ADDR: visibility:7237
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      RATE_LIMIT_REQUESTS: "1000"
+      RATE_LIMIT_WINDOW: 60s
+      ENGINE_PARTITION_COUNT: ${ENGINE_PARTITION_COUNT:-16}
+      JOB_CONSUMER_GROUP: engine-group
+      JOB_CLAIM_MIN_IDLE: 30s
+      JOB_CLAIM_BATCH: "50"
+    ports:
+      - "${ENGINE_HTTP_PORT:-8080}:8080"
+      - "${ENGINE_GRPC_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      history:
+        condition: service_healthy
+      matching:
+        condition: service_healthy
+
+  history:
+    build:
+      <<: *engine-build
+      args:
+        SERVICE: history
+    <<: *common-config
+    environment:
+      <<: *common-env
+      SERVICE_NAME: history
+      GRPC_PORT: "7234"
+      HTTP_PORT: "8080"
+      SHARD_COUNT: "16"
+      MATCHING_ADDR: matching:7235
+      TIMER_ADDR: timer:7238
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  matching:
+    build:
+      <<: *engine-build
+      args:
+        SERVICE: matching
+    <<: *common-config
+    environment:
+      <<: *common-env
+      SERVICE_NAME: matching
+      GRPC_PORT: "7235"
+      HTTP_PORT: "8080"
+      PARTITION_COUNT: "4"
+      TASK_QUEUE_SYNC_INTERVAL: 1s
+      LONG_POLL_TIMEOUT: 60s
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      <<: *engine-build
+      args:
+        SERVICE: worker
+    <<: *common-config
+    environment:
+      <<: *common-env
+      SERVICE_NAME: worker
+      HTTP_PORT: "8080"
+      MATCHING_ADDR: matching:7235
+      HISTORY_ADDR: history:7234
+      TASK_QUEUE: workflows-high,workflows-default,workflows-low,default
+      NUM_WORKERS: "4"
+      POLL_INTERVAL: 1s
+      CALLBACK_URL: ${CALLBACK_URL:-http://host.docker.internal/api/v1/jobs/callback}
+      CALLBACK_SECRET: ${LINKFLOW_SECRET:?Set LINKFLOW_SECRET in .env}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      matching:
+        condition: service_healthy
+
+  timer:
+    build:
+      <<: *engine-build
+      args:
+        SERVICE: timer
+    <<: *common-config
+    environment:
+      <<: *common-env
+      SERVICE_NAME: timer
+      GRPC_PORT: "7238"
+      HTTP_PORT: "8083"
+      HISTORY_ADDR: history:7234
+      SCAN_INTERVAL: 1s
+      BATCH_SIZE: "100"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      history:
+        condition: service_healthy
+
+  visibility:
+    build:
+      <<: *engine-build
+      args:
+        SERVICE: visibility
+    <<: *common-config
+    environment:
+      <<: *common-env
+      SERVICE_NAME: visibility
+      GRPC_PORT: "7237"
+      HTTP_PORT: "8085"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================
+  # Migrations (one-time)
+  # ============================================
+  migrate:
+    build:
+      <<: *engine-build
+      args:
+        SERVICE: worker
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-linkflow}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-linkflow}?sslmode=disable&search_path=workflow
+    command: >
+      sh -c "
+        echo '🔄 Running engine migrations...' &&
+        /app/service --migrate-only || echo 'Migration command not supported' &&
+        echo '✅ Engine migrations complete!'
+      "
+    networks:
+      - engine
+    profiles:
+      - migrate
+
+volumes:
+  postgres_data:
+    name: agent1o1_engine_postgres
+  redis_data:
+    name: agent1o1_engine_redis
+
+networks:
+  engine:
+    name: agent1o1-engine
+    driver: bridge

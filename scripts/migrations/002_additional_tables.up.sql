@@ -1,0 +1,2 @@
+-- Migration consolidated into 001_initial.up.sql
+-- This file is kept empty to maintain migration history integrity
